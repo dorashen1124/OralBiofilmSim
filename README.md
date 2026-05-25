@@ -18,3 +18,20 @@ The reason I want to develop this project is because I'm interested in dentistry
 -Some scientific advances included metagenomics and imaging which provides better identification of microbes understanding of spatial structure (which is the goal of my research project)
 
 ---
+Credit Acknowledgement
+
+The data I used to explore the bacteria is from curatedMetagenomicData
+This website also provided guidance to import the data from the curatedMetagenomicData library
+link: https://waldronlab.io/curatedMetagenomicData/articles/curatedMetagenomicData.html
+(Thanks Tutu '26 for reccomending this megaset to me!)
+
+The human gum model I use to simulate the movement of the bacteria from blenderkit is called Human Mouth Cavity
+link: https://www.blenderkit.com/asset-gallery-detail/344922b1-3664-4cf5-9e16-6caa008a27f5/?query=human+teeth+order:_score
+(Thanks Sage '26 for reccommending blender as a modeling platform to me!)
+
+The paper I used to learn findings about the oral microbiome is called: The oral microbiome- diversity, biogeography and human health
+link: https://www.nature.com/articles/s41579-023-00963-6
+
+---
+Installation
+
