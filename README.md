@@ -36,12 +36,14 @@ link: https://www.nature.com/articles/s41579-023-00963-6
 ---
 ## Installation
 
-To explore the data from curatedMetagenomicData, please download r studio from https://rstudio-education.github.io/hopr/starting.html 
+To explore the data from curatedMetagenomicData, please download r first and r studio from https://posit.co/download/rstudio-desktop
 
 To explore the competition, movement, and colony formation model extracted data from the r studio and curatedMetagenomicData, please download pycharm community version from https://www.jetbrains.com/pycharm/download/?section=mac
 
 To explore the 3D modeling about the bacteria movement, please download blender and purchase the human mouth cavity model (from blenderkit website) and copy the code (later shared) to the scripting-text editor.
 
 ---
+
+
 
 
