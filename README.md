@@ -18,12 +18,13 @@ The reason I want to develop this project is because I'm interested in dentistry
 -Some scientific advances included metagenomics and imaging which provides better identification of microbes understanding of spatial structure (which is the goal of my research project)
 
 ---
-Credit Acknowledgement
+##Credit Acknowledgement
 
 The data I used to explore the bacteria is from curatedMetagenomicData
 This website also provided guidance to import the data from the curatedMetagenomicData library
 link: https://waldronlab.io/curatedMetagenomicData/articles/curatedMetagenomicData.html
-(Thanks Tutu '26 for reccomending this megaset to me!)
+
+-Tutu '26 recommended this website to me because this metadata site consists of 22,588 samples from 93 datasets covering human microbiome studies. There are 141 metadata fields per sample with 6 main data types, such as relative abundance (for each species), marker presence (unique clade-specific markers), marker abundance, gene families, pathway coverage (metabolic), and pathway abundance. Each study includes the category of the microbiome environment it investigated, and there’s a lot for the oral cavity!  It’s good to use this website to connect with my modeling part in this project because the analyses in the dataset can be in both R and Python, which Blender supports to import Python code into the modeling project, so that the bacteria in the microbiome environment can perform their pathways from the dataset data. 
 
 The human gum model I use to simulate the movement of the bacteria from blenderkit is called Human Mouth Cavity
 link: https://www.blenderkit.com/asset-gallery-detail/344922b1-3664-4cf5-9e16-6caa008a27f5/?query=human+teeth+order:_score
@@ -33,5 +34,14 @@ The paper I used to learn findings about the oral microbiome is called: The oral
 link: https://www.nature.com/articles/s41579-023-00963-6
 
 ---
-Installation
+##Installation
+
+To explore the data from curatedMetagenomicData, please download r studio from https://rstudio-education.github.io/hopr/starting.html 
+
+To explore the competition, movement, and colony formation model extracted data from the r studio and curatedMetagenomicData, please download pycharm community version from https://www.jetbrains.com/pycharm/download/?section=mac
+
+To explore the 3D modeling about the bacteria movement, please download blender and purchase the human mouth cavity model (from blenderkit website) and copy the code (later shared) to the scripting-text editor.
+
+---
+
 
