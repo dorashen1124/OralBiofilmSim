@@ -18,7 +18,7 @@ The reason I want to develop this project is because I'm interested in dentistry
 -Some scientific advances included metagenomics and imaging which provides better identification of microbes understanding of spatial structure (which is the goal of my research project)
 
 ---
-##Credit Acknowledgement
+## Credit Acknowledgement
 
 The data I used to explore the bacteria is from curatedMetagenomicData
 This website also provided guidance to import the data from the curatedMetagenomicData library
@@ -34,7 +34,7 @@ The paper I used to learn findings about the oral microbiome is called: The oral
 link: https://www.nature.com/articles/s41579-023-00963-6
 
 ---
-##Installation
+## Installation
 
 To explore the data from curatedMetagenomicData, please download r studio from https://rstudio-education.github.io/hopr/starting.html 
 
