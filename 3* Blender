@@ -1,0 +1,691 @@
+# The Blender script is the final visualization stage of my project. After RStudio was used to explore curated oral microbiome data and PyCharm was used to simulate bacterial growth, movement, and competition, Blender imported the resulting CSV files and converted them into a 3D animated scene. Biofilm density values were transformed into growing cubes on a tooth surface, bacterial movement trajectories were transformed into moving colored spheres, and population data was transformed into animated bar graphs. This connected biological data analysis, computational simulation, and 3D visualization into one workflow.
+
+"""
+BLENDER 3D ORAL MICROBIOME VISUALIZATION
+
+RStudio → PyCharm → Blender
+
+RStudio:
+- curatedMetagenomicData dataset exploration
+- filtering oral cavity samples
+- bacterial abundance analysis
+- selecting important oral bacteria
+- exporting CSV files
+
+PyCharm:
+- growth model
+- movement model
+- competition model
+- biofilm formation model
+- exported simulation CSV files
+
+Blender:
+- imports simulation CSV files
+- converts simulation data into 3D animation
+
+============================================================
+WHAT THIS SCRIPT BUILDS
+
+1. TOOTH SURFACE
+   - flat enamel plane
+
+2. BIOFILM LAYER
+   - growing green cubes
+   - imported from biofilm CSV data
+
+3. MOVING BACTERIA
+   - animated spheres
+   - imported from movement trajectory CSVs
+
+4. POPULATION COMPETITION BARS
+   - animated vertical bars
+   - imported from competition model CSV
+
+============================================================
+RUBRIC CONNECTIONS
+
+Algorithm Research:
+- grid reconstruction
+- keyframe animation
+- movement trajectories
+- biofilm density conversion
+- population normalization
+
+Animation/Graph:
+- animated bacteria movement
+- animated biofilm growth
+- animated competition bars
+
+Transition between 3 sites:
+RStudio → CSV → PyCharm → CSV → Blender
+
+Background Explanation:
+- oral microbiome biofilm formation
+- early colonizers
+- secondary colonizers
+- disease-associated bacteria
+
+============================================================
+"""
+
+import bpy
+import csv
+import os
+import math
+
+
+# ============================================================
+# DATA PATHS
+# These folders contain CSV files generated from PyCharm.
+
+# DATA_PATH:
+# - biofilm growth model outputs
+
+# MOVEMENT_PATH:
+# - movement trajectories
+# - competition trajectories
+
+#Feel free to change this path suitable for your computer
+DATA_PATH = "/Users/dslol/"
+MOVEMENT_PATH = "/Users/dslol/"
+
+
+# ============================================================
+# OUTPUT DIRECTORY
+
+# IMPORTANT:
+# Blender temporary autosave folders are often read-only.
+# Therefore we use a real writable folder.
+
+OUTPUT_DIR = "/Users/dslol/biofilm_output"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+
+# ============================================================
+# FRAME SETTINGS
+
+# 1 simulation timestep = 2 Blender frames
+
+FRAMES_PER_STEP = 2
+
+
+# ============================================================
+# HELPER FUNCTION:
+# CLEAR SCENE
+
+# Algorithm:
+# scene reset algorithm
+#
+# Purpose:
+# - removes previous objects
+# - prevents overlap/errors
+# - allows rerunning script safely
+
+def clear_scene():
+
+    bpy.ops.object.select_all(action='SELECT')
+    bpy.ops.object.delete()
+
+    for block in bpy.data.meshes:
+        bpy.data.meshes.remove(block)
+
+
+# ============================================================
+# HELPER FUNCTION:
+# CREATE MATERIAL
+# ============================================================
+# Algorithm:
+# material creation algorithm
+#
+# Purpose:
+# - enamel material
+# - biofilm material
+# - bacteria species colors
+# - competition bar colors
+
+def make_material(name,
+                  color,
+                  metallic=0.0,
+                  roughness=0.5,
+                  alpha=1.0):
+
+    mat = bpy.data.materials.new(name=name)
+    mat.use_nodes = True
+
+    bsdf = mat.node_tree.nodes["Principled BSDF"]
+
+    bsdf.inputs["Base Color"].default_value = (*color, 1.0)
+    bsdf.inputs["Metallic"].default_value = metallic
+    bsdf.inputs["Roughness"].default_value = roughness
+
+    if alpha < 1.0:
+        mat.blend_method = 'BLEND'
+        bsdf.inputs["Alpha"].default_value = alpha
+
+    return mat
+
+
+# ============================================================
+# HELPER FUNCTION:
+# KEYFRAME INSERTION
+# ============================================================
+# Algorithm:
+# animation keyframing
+#
+# Purpose:
+# - stores object movement over time
+# - stores object scaling over time
+
+def set_keyframe(obj, frame, data_path, value, index=-1):
+
+    if index >= 0:
+        obj.path_resolve(data_path)[index] = value
+
+    bpy.context.scene.frame_set(frame)
+
+    obj.keyframe_insert(
+        data_path=data_path,
+        frame=frame,
+        index=index
+    )
+
+
+# ============================================================
+# STEP 0:
+# SCENE SETUP
+# ============================================================
+
+clear_scene()
+
+total_frames = 101 * FRAMES_PER_STEP + 10
+bpy.context.scene.frame_end = total_frames
+
+
+# ============================================================
+# CAMERA
+# ============================================================
+
+bpy.ops.object.camera_add(location=(8, -12, 10))
+
+cam = bpy.context.object
+
+cam.rotation_euler = (
+    math.radians(55),
+    0,
+    math.radians(25)
+)
+
+bpy.context.scene.camera = cam
+
+
+# ============================================================
+# LIGHTING
+# ============================================================
+
+bpy.ops.object.light_add(type='SUN', location=(5, 5, 15))
+
+sun = bpy.context.object
+sun.data.energy = 3.0
+
+print("Scene setup complete.")
+
+
+# ============================================================
+# STEP 1:
+# TOOTH SURFACE
+# ============================================================
+# Algorithm:
+# base environment creation
+#
+# Creates flat enamel plane
+
+bpy.ops.mesh.primitive_plane_add(
+    size=10,
+    location=(0, 0, 0)
+)
+
+tooth = bpy.context.object
+tooth.name = "ToothSurface"
+
+
+# Enamel material
+tooth_mat = make_material(
+    "Enamel",
+    color=(0.95, 0.92, 0.82),
+    roughness=0.3
+)
+
+tooth.data.materials.append(tooth_mat)
+
+print("Tooth surface created.")
+
+
+# ============================================================
+# STEP 2:
+# BIOFILM GROWTH
+# ============================================================
+# Algorithm:
+# grid-to-3D conversion
+#
+# Reads:
+# biofilm_all_timesteps.csv
+#
+# CSV structure:
+# rows = timesteps
+# columns = flattened 50×50 grid cells
+# values = biofilm density
+
+GRID_SIZE = 50
+
+CELL_SCALE = 10 / GRID_SIZE
+
+BIOFILM_Z = 0.05
+
+
+biofilm_csv = os.path.join(
+    DATA_PATH,
+    "biofilm_all_timesteps.csv"
+)
+
+if os.path.exists(biofilm_csv):
+
+    print("Loading biofilm CSV...")
+
+    with open(biofilm_csv, newline='') as f:
+
+        reader = csv.reader(f)
+
+        next(reader)
+
+        timesteps = []
+
+        for row in reader:
+
+            values = [float(v) for v in row[1:]]
+
+            timesteps.append(values)
+
+    biofilm_mat = make_material(
+        "Biofilm",
+        color=(0.1, 0.6, 0.2),
+        roughness=0.8
+    )
+
+    # ========================================================
+    # ACTIVE CELL DETECTION
+    # ========================================================
+    # Only creates cubes for cells that ever contain biofilm.
+    #
+    # Improves Blender performance.
+
+    n_cells = GRID_SIZE * GRID_SIZE
+
+    ever_colonised = [False] * n_cells
+
+    for ts in timesteps:
+
+        for idx, val in enumerate(ts):
+
+            if val > 0:
+
+                ever_colonised[idx] = True
+
+    biofilm_cubes = {}
+
+    print("Creating biofilm cubes...")
+
+    for idx in range(n_cells):
+
+        if not ever_colonised[idx]:
+            continue
+
+        # ====================================================
+        # GRID RECONSTRUCTION ALGORITHM
+        # ====================================================
+        # Converts flattened CSV index
+        # back into 2D row/column coordinates.
+
+        row = idx // GRID_SIZE
+        col = idx % GRID_SIZE
+
+        x = (col - GRID_SIZE / 2 + 0.5) * CELL_SCALE
+        y = (row - GRID_SIZE / 2 + 0.5) * CELL_SCALE
+
+        bpy.ops.mesh.primitive_cube_add(
+            size=CELL_SCALE * 0.9,
+            location=(x, y, 0)
+        )
+
+        cube = bpy.context.object
+
+        cube.name = f"Biofilm_{idx}"
+
+        cube.data.materials.append(biofilm_mat)
+
+        cube.scale.z = 0.001
+
+        cube.keyframe_insert(
+            data_path="scale",
+            index=2,
+            frame=1
+        )
+
+        biofilm_cubes[idx] = cube
+
+    # ========================================================
+    # BIOFILM GROWTH ANIMATION
+    # ========================================================
+    # Algorithm:
+    # density-to-height conversion
+    #
+    # low density = short cube
+    # high density = tall cube
+
+    print("Animating biofilm growth...")
+
+    for step_i, ts_values in enumerate(timesteps):
+
+        frame = step_i * FRAMES_PER_STEP + 1
+
+        for idx, density in enumerate(ts_values):
+
+            if idx not in biofilm_cubes:
+                continue
+
+            cube = biofilm_cubes[idx]
+
+            cube.scale.z = max(
+                0.001,
+                density * BIOFILM_Z
+            )
+
+            cube.keyframe_insert(
+                data_path="scale",
+                index=2,
+                frame=frame
+            )
+
+    print("Biofilm animation complete.")
+
+else:
+
+    print("WARNING:")
+    print("biofilm_all_timesteps.csv not found.")
+    print("Run Growth_Model.py first.")
+
+
+# ============================================================
+# STEP 3:
+# BACTERIAL MOVEMENT
+# ============================================================
+# Algorithm:
+# trajectory-based animation
+#
+# Reads:
+# trajectory_<species>.csv
+#
+# Each row:
+# x,y,z coordinates for bacteria positions
+
+SPECIES_INFO = [
+
+    # species name, color, z offset
+
+    ("Streptococcus_mitis",
+     (0.2, 0.4, 0.9),
+     0.3),
+
+    ("Veillonella_parvula",
+     (0.2, 0.8, 0.3),
+     0.5),
+
+    ("Porphyromonas_gingivalis",
+     (0.9, 0.2, 0.2),
+     0.7),
+]
+
+# Biological explanation:
+#
+# blue:
+# early colonizer
+#
+# green:
+# secondary colonizer
+#
+# red:
+# disease-associated bacterium
+
+N_BACTERIA = 30
+
+BACT_RADIUS = 0.08
+
+
+for species_name, color, z_offset in SPECIES_INFO:
+
+    traj_path = os.path.join(
+        MOVEMENT_PATH,
+        f"trajectory_{species_name}.csv"
+    )
+
+    if not os.path.exists(traj_path):
+
+        print(f"WARNING: missing {traj_path}")
+
+        continue
+
+    print(f"Loading movement data for {species_name}...")
+
+    with open(traj_path, newline='') as f:
+
+        reader = csv.reader(f)
+
+        traj_steps = [
+            [float(v) for v in row]
+            for row in reader
+        ]
+
+    mat = make_material(
+        species_name,
+        color=color,
+        roughness=0.6
+    )
+
+    spheres = []
+
+    # ========================================================
+    # BACTERIA SPHERE CREATION
+    # ========================================================
+    # Each bacterium becomes a sphere.
+
+    for b in range(N_BACTERIA):
+
+        x = traj_steps[0][b * 3] * 5
+        y = traj_steps[0][b * 3 + 1] * 5
+        z = traj_steps[0][b * 3 + 2] * 5 + z_offset
+
+        bpy.ops.mesh.primitive_uv_sphere_add(
+            radius=BACT_RADIUS,
+            location=(x, y, z)
+        )
+
+        sphere = bpy.context.object
+
+        sphere.name = f"{species_name}_b{b}"
+
+        sphere.data.materials.append(mat)
+
+        spheres.append(sphere)
+
+    # ========================================================
+    # MOVEMENT KEYFRAMING
+    # ========================================================
+    # Blender interpolates between frames
+    # to create smooth movement.
+
+    for step_i, ts_values in enumerate(traj_steps):
+
+        frame = step_i * FRAMES_PER_STEP + 1
+
+        for b, sphere in enumerate(spheres):
+
+            x = ts_values[b * 3] * 5
+            y = ts_values[b * 3 + 1] * 5
+            z = ts_values[b * 3 + 2] * 5 + z_offset
+
+            sphere.location = (x, y, z)
+
+            sphere.keyframe_insert(
+                data_path="location",
+                frame=frame
+            )
+
+    print(f"{species_name} movement animated.")
+
+
+# ============================================================
+# STEP 4:
+# POPULATION COMPETITION BARS
+# ============================================================
+# Algorithm:
+# population-to-bar conversion
+#
+# Reads:
+# population_trajectory.csv
+#
+# Purpose:
+# visualize species competition over time
+
+pop_csv = os.path.join(
+    MOVEMENT_PATH,
+    "population_trajectory.csv"
+)
+
+if os.path.exists(pop_csv):
+
+    print("Loading population competition data...")
+
+    with open(pop_csv, newline='') as f:
+
+        reader = csv.reader(f)
+
+        headers = next(reader)
+
+        pop_rows = [
+            [float(v) for v in row]
+            for row in reader
+        ]
+
+    n_species = len(headers)
+
+    max_val = max(
+        v for row in pop_rows for v in row
+    )
+
+    bar_mats = [
+
+        make_material("Pop_0", (0.2, 0.4, 0.9)),
+        make_material("Pop_1", (0.2, 0.8, 0.3)),
+        make_material("Pop_2", (0.9, 0.5, 0.1)),
+        make_material("Pop_3", (0.8, 0.2, 0.8)),
+        make_material("Pop_4", (0.9, 0.2, 0.2)),
+    ]
+
+    bars = []
+
+    BAR_X_START = 7.0
+    BAR_SPACING = 1.2
+
+    # ========================================================
+    # CREATE COMPETITION BARS
+    # ========================================================
+
+    for s in range(n_species):
+
+        x = BAR_X_START + s * BAR_SPACING
+
+        bpy.ops.mesh.primitive_cube_add(
+            size=1.0,
+            location=(x, 0, 0.5)
+        )
+
+        bar = bpy.context.object
+
+        bar.name = f"PopBar_{s}"
+
+        bar.scale = (0.4, 0.4, 0.001)
+
+        bar.data.materials.append(
+            bar_mats[s % len(bar_mats)]
+        )
+
+        bar.keyframe_insert(
+            data_path="scale",
+            index=2,
+            frame=1
+        )
+
+        bars.append(bar)
+
+    # ========================================================
+    # BAR HEIGHT KEYFRAMING
+    # ========================================================
+    # Larger population = taller bar
+
+    MAX_BAR_HEIGHT = 3.0
+
+    for step_i, row_vals in enumerate(pop_rows):
+
+        frame = step_i * FRAMES_PER_STEP + 1
+
+        for s, bar in enumerate(bars):
+
+            if s >= len(row_vals):
+                continue
+
+            if max_val > 0:
+
+                height = (
+                    row_vals[s] / max_val
+                ) * MAX_BAR_HEIGHT
+
+            else:
+
+                height = 0.001
+
+            bar.scale.z = max(0.001, height)
+
+            bar.location.z = height / 2
+
+            bar.keyframe_insert(
+                data_path="scale",
+                index=2,
+                frame=frame
+            )
+
+            bar.keyframe_insert(
+                data_path="location",
+                index=2,
+                frame=frame
+            )
+
+    print("Competition bars animated.")
+
+else:
+
+    print("WARNING:")
+    print("population_trajectory.csv not found.")
+    print("Run Competition_Model.py first.")
+
+
+# ============================================================
+# FINAL SUMMARY
+# ============================================================
+
+bpy.context.scene.frame_set(1)
+
+print("\n========================================")
+print("Blender oral microbiome scene complete.")
+print(f"Total frames: {total_frames}")
+print("Press SPACEBAR to preview animation.")
+print("Render → Render Animation to export.")
+print("========================================")
