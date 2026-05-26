@@ -149,7 +149,8 @@ meta_df <- meta |>
     )
 
 
-# Export CSV files
+# Export CSV files-exporting CSV files are important for later steps coding in pycharm because the data will contain a cleaned abundance tables and filtered oral microbiome data instead of repeating preprocessing everytime
+#
 write.csv(
     abundance_model_df,
     "oral_abundance.csv",
