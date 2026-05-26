@@ -1,0 +1,171 @@
+# Using R Studio to explore data from curatedMetagenomicData
+
+---
+
+## Importing curatedMetagenomicData into R Studio
+
+-DO NOT COPY ALL THE LINES STRAIGHT AWAY! 
+-Run the code in each segment in the console and then run the next segment
+
+if (!require("BiocManager", quietly = TRUE))
++     install.packages("BiocManager")
+
+BiocManager::install("curatedMetagenomicData")
+
+BiocManager::install("remotes")
+
+BiocManager::install("waldronlab/curatedMetagenomicData", dependencies = TRUE, build_vignettes = TRUE)
+
+install.packages(c("dplyr", "DT", "stringr"))
+
+BiocManager::install(c("mia", "scater", "vegan")) 
+
+library(curatedMetagenomicData)
+
+#I picked a bacteria specie from the curatedMetagenomicData website and test whether the r studio import megaset correctly
+sampleMetadata |>
++     filter(study_name == "BritoIL_2016") |>
++     distinct(body_site)
+#hopefully it will appear: body_site
+1 oralcavity
+2      stool 
+
+---
+
+## Prevalence of bacteria species (can paste this whole chunk into r studio)
+
+# Load libraries
+library(curatedMetagenomicData)
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+library(mia)
+library(scater)
+library(vegan)
+
+View(sampleMetadata)
+
+sampleMetadata |>
+    #take the same specie from the website I used to explore the relative abundance of the top 10 oral bacteria across different subects/samples from the BritoIL_2016 oral activity microbiome dataset
+    filter(study_name == "BritoIL_2016") |>
+    distinct(body_site)
+
+# Import oral cavity samples
+oral <- sampleMetadata |>
+    filter(
+        study_name == "BritoIL_2016",
+        body_site == "oralcavity"
+    ) |>
+    returnSamples(
+        "relative_abundance",
+        rownames = "short"
+    )
+
+# Check dataset dimensions
+# The purpose to check this is to verify whether: dataset imported correctly, filtering worked properly, and enough data exists for statistical analysis
+# In this project, it confilmed that only cavity samples were selected and the dataset still contained a large amount of microbial information
+dim(oral)
+#When run this separately hopeully it will print [1] 730 140, which is 730 species in total and 140 samples gives enough subjects for trends and statistical modeling
+
+# Extract abundance matrix + metadata
+abundance <- assay(oral, "relative_abundance")
+
+meta <- as.data.frame(colData(oral))
+
+# Add sample IDs
+meta$sample_id <- rownames(meta)
+
+
+# Find top 10 most abundant species
+avg_abundance <- rowMeans(abundance)
+
+top10_names <- names(
+    sort(avg_abundance, decreasing = TRUE)[1:10]
+)
+
+top10_names
+
+
+# Calculate prevalence
+prevalence <- rowSums(abundance > 0) / ncol(abundance)
+
+sort(prevalence, decreasing = TRUE)[1:10]
+
+
+# Build long-format dataframe
+abundance_df <- abundance[top10_names, ] |>
+    as.data.frame() |>
+    tibble::rownames_to_column("species") |>
+    pivot_longer(
+        -species,
+        names_to = "sample_id",
+        values_to = "abundance"
+    )
+
+
+# Merge abundance + metadata
+plot_df <- merge(
+    abundance_df,
+    meta,
+    by = "sample_id"
+)
+
+
+# Plot bacterial abundance
+ggplot(
+    plot_df,
+    aes(
+        x = sample_id,
+        y = abundance,
+        fill = species
+    )
+) +
+    geom_bar(stat = "identity") +
+    facet_wrap(~ species, scales = "free_y") +
+    labs(
+        x = "Subject",
+        y = "Relative abundance",
+        title = "Oral bacterial abundance across subjects"
+    ) +
+    theme_minimal() +
+    theme(
+        axis.text.x = element_blank(),
+        legend.position = "none"
+    )
+
+# Create abundance table for modeling
+abundance_model_df <- abundance |>
+    t() |>
+    as.data.frame() |>
+    tibble::rownames_to_column("sample_id")
+
+
+# Create metadata table
+meta_df <- meta |>
+    select(
+        sample_id,
+        disease,
+        study_condition
+    )
+
+
+# Export CSV files
+write.csv(
+    abundance_model_df,
+    "oral_abundance.csv",
+    row.names = FALSE
+)
+
+write.csv(
+    meta_df,
+    "oral_metadata.csv",
+    row.names = FALSE
+)
+
+# Check exported files
+file.exists("oral_abundance.csv")
+
+file.exists("oral_metadata.csv")
+
+getwd()
+
