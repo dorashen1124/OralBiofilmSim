@@ -199,3 +199,170 @@ file.exists("oral_metadata.csv")
 getwd()
 
 ---
+## Checking disease/condition categories
+colData(oral) |>
+  as.data.frame() |>
+  distinct(study_condition, disease)
+
+Algorithm used: metadata extraction and category search
+colData(oral) = extracts sample information from the microbiome obect
+as.data.frame() = converts the metadata into a normal R dataframe
+distinct(study_condition, disease) = searches for unique combinations of study condition and disease
+Purpose: to check whether the dataset has enough disease groups for comparison
+-Fit for linear regression model which the regression only works if there are at least two disease categories
+
+---
+## Regression between bacteria and disease
+
+top20_names <- names(sort(rowMeans(abundance), decreasing = TRUE)[1:20])
+
+abundance_df <- abundance[top20_names, ] |>
+  as.data.frame() |>
+  tibble::rownames_to_column("species") |>
+  pivot_longer(-species, names_to = "sample_id", values_to = "abundance")
+
+model_df <- merge(abundance_df, meta, by = "sample_id")
+
+results <- lapply(top20_names, function(sp) {
+  sub_df <- model_df[model_df$species == sp, ]
+  sub_df <- sub_df[!is.na(sub_df$disease), ]
+  
+  if (length(unique(sub_df$disease)) < 2) return(NULL)
+  
+  fit <- lm(abundance ~ disease, data = sub_df)
+  s <- summary(fit)
+  
+  data.frame(
+    species = sp,
+    r_squared = round(s$r.squared, 4),
+    p_value = round(coef(s)[2, 4], 4)
+  )
+})
+
+results_df <- do.call(rbind, Filter(Negate(is.null), results))
+results_df <- results_df[order(results_df$p_value), ]
+
+print(results_df)
+
+rowMeans(abundance) = calculates the average abundance of each bacterial species.
+sort(..., decreasing = TRUE)[1:20] = selects the top 20 most abundant species.
+pivot_longer() = reshapes the abundance table into long format so each row contains one species, one sample, and one abundance value.
+merge() = connects abundance data with metadata using sample_id.
+lapply() = loops through each top species automatically.
+
+For each species, the code:
+-selects only rows for that species,
+-removes missing disease values,
+-checks whether there are at least two disease groups,
+-runs lm(abundance ~ disease) if comparison is possible.
+-summary(fit) extracts regression statistics.
+
+r_squared shows how much abundance variation is explained by disease.
+p_value estimates whether the disease-abundance relationship is statistically significant.
+order(results_df$p_value) sorts species from strongest to weakest statistical relationship.
+Purpose: to test whether certain bacteria are associated with disease condition.
+
+---
+## Bray-Curtis PCoA plot
+
+altExps(oral) <- splitByRanks(oral)
+
+oral_pcoa <- oral |>
+  runMDS(
+    FUN = vegdist,
+    method = "bray",
+    exprs_values = "relative_abundance",
+    altexp = "genus",
+    name = "BrayCurtis"
+  )
+
+plotReducedDim(
+  oral_pcoa,
+  "BrayCurtis",
+  colour_by = "disease",
+  shape_by = "study_condition"
+) +
+  labs(
+    x = "PCo 1",
+    y = "PCo 2",
+    title = "Oral community composition by disease condition"
+  ) +
+  theme_minimal()
+
+Algorithm used: ecological distance calculation and dimensionality reduction.
+splitByRanks(oral) = groups bacteria by taxonomic rank, such as genus.
+altExps(oral) =  stores those taxonomic-rank versions inside the microbiome object.
+vegdist(method = "bray") = calculates Bray-Curtis distance between samples.
+-Bray-Curtis distance measures how different two microbiome communities are based on bacterial abundance.
+runMDS() = reduces the complex microbiome dataset into two main coordinates.
+plotReducedDim() = plots those coordinates as a 2D graph.
+colour_by = "disease" --colors samples by disease group.
+shape_by = "study_condition" --changes point shape by study condition.
+
+Purpose: to visualize whether oral microbiome samples cluster differently based on disease or condition.
+Why it matters: this analyzes the whole bacterial community, not just one species.
+
+---
+## Ready and Processed microbiome data from R studio into CSV files
+
+The code was from the abundance table:
+
+write.csv(
+    abundance_model_df,
+    "oral_abundance.csv",
+    row.names = FALSE
+)
+
+write.csv(
+    meta_df,
+    "oral_metadata.csv",
+    row.names = FALSE
+)
+
+for: ". oral_abundance.csv"
+
+Contains:
+rows = oral microbiome samples
+columns = bacterial species
+values = relative abundance
+
+Example:
+sample_id	Streptococcus_mitis	Veillonella_parvula
+Sample1	0.34	0.05
+
+This is the main file for:
+machine learning,
+bacterial simulations,
+growth models,
+biofilm modeling.
+
+for: "oral_metadata.csv"
+
+Contains:
+sample IDs,
+disease conditions,
+study conditions.
+
+Example:
+sample_id	disease	study_condition
+Sample1	healthy	control
+This lets Python connect microbiome samples with biological labels.
+
+-How to use it in PyCharm
+In Python:
+
+import pandas as pd
+abundance = pd.read_csv("oral_abundance.csv")
+metadata = pd.read_csv("oral_metadata.csv")
+
+print(abundance.head())
+print(metadata.head())
+
+**Important thing to understand**
+RStudio itself does NOT automatically transfer data into PyCharm.
+
+The code itself:
+-process microbiome data in R,
+-export cleaned datasets as CSV files,
+-allow Python/PyCharm to read those exported files later.
+-The CSV files act as the “bridge” between RStudio and Python.
