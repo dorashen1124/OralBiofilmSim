@@ -1,0 +1,679 @@
+##Please put these segments of code in separate files
+
+---
+#initialization of collecting data from the r studio 
+#When I import the outside packages, I have to find it through setting and check what each import are for. For example, the scipy is the algorithms for scientific computing. The pandas imports will read files and store data as a table.
+The numpy imports will handle math calculations, arrays and matrices, and simulate numbers. 
+#The users need to also do this
+import pandas as pd
+import numpy as np
+
+#fixed the path so blender can reads it
+# The loading process in code loads a file into a pandas DataFrame-style object (imported from the top) to present data as a 2D array, combining arrays and objects. 
+
+The oral abundance file stores the bacterial species, abundance values, and relative percentages in the samples’ information. The oral metadata stores information about the samples (patients’ information, health conditions, sample locations, disease status, etc.).
+Both lines combine the folder path and filename together. 
+
+# This is my own path of extracting csv files
+## For the users feel free to change the path by first run getwd() in r studio and copy what it printed into these two
+DATA_PATH     = "/Users/dslol/"     # where biofilm CSV is
+MOVEMENT_PATH = "/Users/dslol/"     # where the others are
+
+# Load R exports
+abundance = pd.read_csv(DATA_PATH + "oral_abundance.csv", index_col=0)
+metadata  = pd.read_csv(DATA_PATH + "oral_metadata.csv",  index_col=0)
+
+# Confirm it loaded
+print("Abundance shape:", abundance.shape)   # should print (20, 140)
+print("Metadata shape:",  metadata.shape)    # should print (140, 141)
+print("\nTop species:")
+print(abundance.index.tolist())              # prints your 20 species names
+
+---
+#Competition Model 
+
+import numpy as np
+import pandas as pd
+from scipy.integrate import odeint
+import matplotlib.pyplot as plt
+
+# Load data
+DATA_PATH = "/Users/dslol/"
+abundance = pd.read_csv(DATA_PATH + "oral_abundance.csv", index_col=0)
+
+# Use real average abundances as starting populations
+initial_populations = abundance.mean(axis=1).values[:5]
+species_names = [name.replace("species:", "")
+                 for name in abundance.index.tolist()[:5]]
+
+print("Starting populations:")
+for name, pop in zip(species_names, initial_populations):
+    print(f"  {name}: {pop:.4f}")
+
+# Define Lotka-Volterra competition model
+def lotka_volterra(N, t, r, A):
+    N = np.maximum(N, 0)   # prevent negative populations
+    dNdt = N * (r + A @ N)
+    return dNdt
+
+# Parameters
+n_species = len(initial_populations)
+r = np.array([0.8, 0.6, 0.5, 0.7, 0.4])    # growth rates
+A = np.full((n_species, n_species), -0.01)   # competition
+np.fill_diagonal(A, -0.05)                   # self-limitation
+
+# Time points — 200 steps simulating bacterial growth
+t = np.linspace(0, 200, 1000)
+
+# Solve ODE
+solution = odeint(lotka_volterra, initial_populations, t, args=(r, A))
+
+# Save trajectory for Blender later
+trajectory_df = pd.DataFrame(solution, columns=species_names)
+trajectory_df.to_csv(DATA_PATH + "population_trajectory.csv")
+print("\nTrajectory saved!")
+
+# Plot population over time
+plt.figure(figsize=(12, 6))
+for i, name in enumerate(species_names):
+    plt.plot(t, solution[:, i], label=name, linewidth=2)
+
+plt.xlabel("Time")
+plt.ylabel("Relative abundance")
+plt.title("Simulated oral bacterial population dynamics")
+plt.legend(loc="upper right", fontsize=9)
+plt.tight_layout()
+plt.savefig(DATA_PATH + "population_dynamics.png")
+plt.show()
+print("Plot saved!")
+
+## Algorism & graph variables explained (don't copy this!)
+#I choose the Lotka-Volterra competition model to simulate the interactions between species. In this project, the model tracks how oral bacteria complete for nutrients and space. 
+The method lotka_volterra has the parameters of current population sizes of bacterial species (N), simulated time (t), bacterial growth rates (r), and interaction matrix describing competition between species (A). 
+dNdt = N * (r + A @N) formula calculated how populations change over time.
+R-increases population growth 
+A @ N-how bacteria affect one another through competition 
+
+# -The r variable gives each bacterial species a different growth speed, and the np.fill_diagonal method represents self-limitation: when a bacterial population becomes too large, its own growth slows down, which corresponds with ecology aspect of this model. 
+-The trajectory is for the generation of the graph, which helps to import into Blender later. 
+-The reason why the code can simulate the changes over time is that the dataset has data for each species’ samples, information and patient samples. 
+
+---
+# Movement Model
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d import Axes3D
+
+DATA_PATH = "/Users/dslol/"# SETTINGS
+# Based top 3 species
+SPECIES = [
+    "Streptococcus_mitis",
+    "Veillonella_parvula",
+    "Porphyromonas_gingivalis"
+]
+
+# Different movement speeds per species
+# S. mitis — fast early colonizer
+# Veillonella — medium, follows Streptococcus
+# P. gingivalis — slow, disease-associated late colonizer
+SPEEDS = [0.08, 0.05, 0.02]
+COLORS = ["blue", "green", "red"]
+
+N_BACTERIA = 30    # bacteria per species
+N_STEPS    = 150   # simulation time steps
+
+
+def simulate_movement(n_bacteria, n_steps, speed, diffusion=0.02):
+    """
+    Simulates bacterial random walk with chemotaxis
+    toward a nutrient source (sugar on tooth surface)
+    """
+    # Start bacteria scattered randomly in oral space
+    positions = np.random.uniform(-1, 1, (n_bacteria, 3))
+    positions[:, 2] *= 0.1   # flatten z = tooth surface
+
+    # Nutrient source — sugar on tooth surface center
+    nutrient = np.array([0.0, 0.0, 0.0])
+
+    all_positions = [positions.copy()]
+
+    for step in range(n_steps):
+        # Random Brownian motion
+        random_move = np.random.normal(0, diffusion, (n_bacteria, 3))
+
+        # Chemotaxis — bacteria sense and move toward nutrient
+        direction = nutrient - positions
+        distance  = np.linalg.norm(direction, axis=1, keepdims=True)
+        direction = direction / (distance + 1e-8)
+
+        # Update positions
+        positions = positions + (speed * direction) + random_move
+
+        # Keep within oral cavity bounds
+        positions = np.clip(positions, -1, 1)
+
+        all_positions.append(positions.copy())
+
+    return np.array(all_positions)  # shape: (n_steps, n_bacteria, 3)
+
+
+# SIMULATION
+print("Running movement simulation...")
+
+all_trajectories = {}
+for name, speed in zip(SPECIES, SPEEDS):
+    print(f"  Simulating {name} at speed {speed}...")
+    traj = simulate_movement(N_BACTERIA, N_STEPS, speed)
+    all_trajectories[name] = traj
+
+    # Save flat CSV for Blender
+    flat = traj.reshape(traj.shape[0], -1)
+    pd.DataFrame(flat).to_csv(
+        DATA_PATH + f"trajectory_{name}.csv",
+        index=False, header=False
+    )
+
+print("\nAll trajectories saved!")
+
+
+# PLOT FINAL POSITIONS
+fig = plt.figure(figsize=(12, 8))
+ax  = fig.add_subplot(111, projection='3d')
+
+for name, color in zip(SPECIES, COLORS):
+    traj = all_trajectories[name]
+
+    # Plot final position of each bacterium
+    final_positions = traj[-1]
+    ax.scatter(
+        final_positions[:, 0],
+        final_positions[:, 1],
+        final_positions[:, 2],
+        c=color, label=name.replace("_", " "),
+        s=50, alpha=0.8
+    )
+
+    # Plot movement trail of first 3 bacteria
+    for b in range(3):
+        ax.plot(
+            traj[:, b, 0],
+            traj[:, b, 1],
+            traj[:, b, 2],
+            c=color, alpha=0.3, linewidth=0.8
+        )
+
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z (depth)")
+ax.set_title("Oral bacterial movement toward nutrient source")
+ax.legend(loc="upper left", fontsize=9)
+
+plt.tight_layout()
+plt.savefig(DATA_PATH + "bacterial_movement.png")
+plt.show()
+print("Movement plot saved!")
+
+
+# PRINT SUMMARY
+print("\n── Simulation Summary ──────────────────")
+for name in SPECIES:
+    traj  = all_trajectories[name]
+    start = traj[0].mean(axis=0)
+    end   = traj[-1].mean(axis=0)
+    dist  = np.linalg.norm(end - start)
+    print(f"{name.replace('_', ' ')}")
+    print(f"  Average start position: {start.round(3)}")
+    print(f"  Average end position:   {end.round(3)}")
+    print(f"  Net displacement:       {dist:.4f}")
+    print()
+
+#SETTINGS
+# Based on your real top 3 species
+SPECIES = [
+    "Streptococcus_mitis",
+    "Veillonella_parvula",
+    "Porphyromonas_gingivalis"
+]
+
+# Different movement speeds per species
+# S. mitis — fast early colonizer
+# Veillonella — medium, follows Streptococcus
+# P. gingivalis — slow, disease-associated late colonizer
+SPEEDS = [0.08, 0.05, 0.02]
+COLORS = ["blue", "green", "red"]
+
+N_BACTERIA = 30    # bacteria per species
+N_STEPS    = 150   # simulation time steps
+
+
+def simulate_movement(n_bacteria, n_steps, speed, diffusion=0.02):
+    """
+    Simulates bacterial random walk with chemotaxis
+    toward a nutrient source (sugar on tooth surface)
+    """
+    # Start bacteria scattered randomly in oral space
+    positions = np.random.uniform(-1, 1, (n_bacteria, 3))
+    positions[:, 2] *= 0.1   # flatten z = tooth surface
+
+    # Nutrient source — sugar on tooth surface center
+    nutrient = np.array([0.0, 0.0, 0.0])
+
+    all_positions = [positions.copy()]
+
+    for step in range(n_steps):
+        # Random Brownian motion
+        random_move = np.random.normal(0, diffusion, (n_bacteria, 3))
+
+        # Chemotaxis — bacteria sense and move toward nutrient
+        direction = nutrient - positions
+        distance  = np.linalg.norm(direction, axis=1, keepdims=True)
+        direction = direction / (distance + 1e-8)
+
+        # Update positions
+        positions = positions + (speed * direction) + random_move
+
+        # Keep within oral cavity bounds
+        positions = np.clip(positions, -1, 1)
+
+        all_positions.append(positions.copy())
+
+    return np.array(all_positions)  # shape: (n_steps, n_bacteria, 3)
+
+
+# RUN SIMULATION
+print("Running movement simulation...")
+
+all_trajectories = {}
+for name, speed in zip(SPECIES, SPEEDS):
+    print(f"  Simulating {name} at speed {speed}...")
+    traj = simulate_movement(N_BACTERIA, N_STEPS, speed)
+    all_trajectories[name] = traj
+
+    # Save flat CSV for Blender
+    flat = traj.reshape(traj.shape[0], -1)
+    pd.DataFrame(flat).to_csv(
+        DATA_PATH + f"trajectory_{name}.csv",
+        index=False, header=False
+    )
+
+print("\nAll trajectories saved!")
+
+
+# PLOT FINAL POSITIONS
+fig = plt.figure(figsize=(12, 8))
+ax  = fig.add_subplot(111, projection='3d')
+
+for name, color in zip(SPECIES, COLORS):
+    traj = all_trajectories[name]
+
+    # Plot final position of each bacterium
+    final_positions = traj[-1]
+    ax.scatter(
+        final_positions[:, 0],
+        final_positions[:, 1],
+        final_positions[:, 2],
+        c=color, label=name.replace("_", " "),
+        s=50, alpha=0.8
+    )
+
+    # Plot movement trail of first 3 bacteria
+    for b in range(3):
+        ax.plot(
+            traj[:, b, 0],
+            traj[:, b, 1],
+            traj[:, b, 2],
+            c=color, alpha=0.3, linewidth=0.8
+        )
+
+ax.set_xlabel("X")
+ax.set_ylabel("Y")
+ax.set_zlabel("Z (depth)")
+ax.set_title("Oral bacterial movement toward nutrient source")
+ax.legend(loc="upper left", fontsize=9)
+
+plt.tight_layout()
+plt.savefig(DATA_PATH + "bacterial_movement.png")
+plt.show()
+print("Movement plot saved!")
+
+
+# PRINT SUMMARY
+for name in SPECIES:
+    traj  = all_trajectories[name]
+    start = traj[0].mean(axis=0)
+    end   = traj[-1].mean(axis=0)
+    dist  = np.linalg.norm(end - start)
+    print(f"{name.replace('_', ' ')}")
+    print(f"  Average start position: {start.round(3)}")
+    print(f"  Average end position:   {end.round(3)}")
+    print(f"  Net displacement:       {dist:.4f}")
+    print()
+
+---
+
+##Growth Model##
+
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+from matplotlib.colors import LinearSegmentedColormap
+import os
+
+OUTPUT_DIR = "biofilm_output"
+os.makedirs(OUTPUT_DIR, exist_ok=True)
+
+SPECIES_PARAMS = {
+    "Streptococcus_mitis": {
+        "growth_rate": 0.16,
+        "attachment_prob": 0.35,
+        "initial_cells": 18
+    },
+    "Veillonella_parvula": {
+        "growth_rate": 0.10,
+        "attachment_prob": 0.25,
+        "initial_cells": 10
+    },
+    "Porphyromonas_gingivalis": {
+        "growth_rate": 0.06,
+        "attachment_prob": 0.15,
+        "initial_cells": 6
+    }
+}
+
+
+def create_nutrient_grid(grid_size):
+    """
+    Creates more nutrients near the center of the tooth surface.
+    """
+    x = np.linspace(-1, 1, grid_size)
+    y = np.linspace(-1, 1, grid_size)
+    X, Y = np.meshgrid(x, y)
+
+    nutrients = np.exp(-(X**2 + Y**2) * 2)
+    nutrients = nutrients / nutrients.max()
+
+    return nutrients
+
+
+def simulate_multispecies_biofilm(
+        grid_size=50,
+        n_steps=100,
+        species_params=SPECIES_PARAMS,
+        nutrient_consumption=0.01
+):
+    """
+    Multi-species biofilm simulation.
+
+    Algorithms used:
+    1. Cellular automaton
+    2. Probabilistic neighbor spreading
+    3. Nutrient-dependent growth
+    4. Multi-species competition
+    """
+
+    species_names = list(species_params.keys())
+    n_species = len(species_names)
+
+    grids = np.zeros((n_species, grid_size, grid_size))
+    nutrients = create_nutrient_grid(grid_size)
+
+    for s, species in enumerate(species_names):
+        initial_cells = species_params[species]["initial_cells"]
+
+        for _ in range(initial_cells):
+            x, y = np.random.randint(1, grid_size - 1, 2)
+            grids[s, x, y] = 0.5
+
+    snapshots = [grids.copy()]
+    nutrient_snapshots = [nutrients.copy()]
+
+    for step in range(n_steps):
+        new_grids = grids.copy()
+        new_nutrients = nutrients.copy()
+
+        for s, species in enumerate(species_names):
+            growth_rate = species_params[species]["growth_rate"]
+            attachment_prob = species_params[species]["attachment_prob"]
+
+            for i in range(1, grid_size - 1):
+                for j in range(1, grid_size - 1):
+
+                    current_density = grids[s, i, j]
+
+                    neighbors = (
+                        grids[s, i - 1, j] +
+                        grids[s, i + 1, j] +
+                        grids[s, i, j - 1] +
+                        grids[s, i, j + 1]
+                    )
+
+                    total_bacteria_here = grids[:, i, j].sum()
+
+                    if current_density > 0:
+                        nutrient_effect = nutrients[i, j]
+
+                        competition_effect = max(0, 1 - total_bacteria_here)
+
+                        growth = (
+                            growth_rate *
+                            nutrient_effect *
+                            competition_effect *
+                            (1 - current_density)
+                        )
+
+                        new_grids[s, i, j] = min(1.0, current_density + growth)
+
+                        new_nutrients[i, j] = max(
+                            0,
+                            new_nutrients[i, j] - nutrient_consumption * current_density
+                        )
+
+                    elif neighbors > 0:
+                        nutrient_effect = nutrients[i, j]
+                        competition_effect = max(0, 1 - total_bacteria_here)
+
+                        spread_chance = (
+                            attachment_prob *
+                            neighbors *
+                            nutrient_effect *
+                            competition_effect
+                        )
+
+                        if np.random.random() < spread_chance:
+                            new_grids[s, i, j] = 0.1
+
+        grids = new_grids
+        nutrients = new_nutrients
+
+        snapshots.append(grids.copy())
+        nutrient_snapshots.append(nutrients.copy())
+
+    return np.array(snapshots), np.array(nutrient_snapshots), species_names
+
+
+print("Running upgraded multi-species biofilm simulation...")
+
+biofilm, nutrients, species_names = simulate_multispecies_biofilm(
+    grid_size=50,
+    n_steps=100
+)
+
+print("Simulation complete.")
+
+
+# Save combined species data as CSV
+n_steps_saved, n_species, gs, _ = biofilm.shape
+
+all_data = {}
+
+for s, species in enumerate(species_names):
+    flat = biofilm[:, s, :, :].reshape(n_steps_saved, gs * gs)
+
+    for cell in range(gs * gs):
+        all_data[f"{species}_cell_{cell}"] = flat[:, cell]
+
+df_out = pd.DataFrame(all_data)
+df_out.index.name = "timestep"
+
+csv_path = os.path.join(OUTPUT_DIR, "multispecies_biofilm_timesteps.csv")
+df_out.to_csv(csv_path)
+
+print(f"Saved CSV → {csv_path}")
+
+
+# Calculate total biofilm density
+total_biofilm = biofilm.sum(axis=1)
+total_biofilm = np.clip(total_biofilm, 0, 1)
+
+
+# Colormap
+biofilm_cmap = LinearSegmentedColormap.from_list(
+    "biofilm",
+    ["#0a0a0a", "#1a472a", "#2d8a4e", "#52c97a", "#b8ffcb"]
+)
+
+
+# Static snapshots
+fig, axes = plt.subplots(2, 4, figsize=(16, 8))
+fig.patch.set_facecolor("#111111")
+fig.suptitle("Multi-Species Biofilm Growth on Tooth Surface",
+             color="white", fontsize=16, fontweight="bold")
+
+snapshot_steps = [0, 10, 20, 35, 50, 65, 80, 100]
+
+for ax, step in zip(axes.flat, snapshot_steps):
+    im = ax.imshow(
+        total_biofilm[step],
+        cmap=biofilm_cmap,
+        vmin=0,
+        vmax=1,
+        interpolation="nearest"
+    )
+
+    ax.set_title(f"Step {step}", color="white")
+    ax.set_facecolor("#0a0a0a")
+    ax.tick_params(colors="gray")
+
+    for spine in ax.spines.values():
+        spine.set_edgecolor("#333333")
+
+plt.colorbar(im, ax=axes, label="Total biofilm density", fraction=0.02, pad=0.04)
+plt.tight_layout()
+
+static_path = os.path.join(OUTPUT_DIR, "multispecies_biofilm_snapshots.png")
+plt.savefig(static_path, dpi=150, bbox_inches="tight", facecolor="#111111")
+plt.show()
+
+print(f"Saved snapshots → {static_path}")
+
+
+# Animated GIF
+fig2, ax2 = plt.subplots(figsize=(6, 6))
+fig2.patch.set_facecolor("#111111")
+ax2.set_facecolor("#0a0a0a")
+ax2.axis("off")
+ax2.set_title("Multi-Species Biofilm Colonization", color="white")
+
+im2 = ax2.imshow(
+    total_biofilm[0],
+    cmap=biofilm_cmap,
+    vmin=0,
+    vmax=1,
+    animated=True,
+    interpolation="nearest"
+)
+
+step_text = ax2.text(1, 2, "Step: 0", color="white", fontsize=11)
+
+
+def update(frame):
+    im2.set_data(total_biofilm[frame])
+    step_text.set_text(f"Step: {frame}")
+    return im2, step_text
+
+
+ani = animation.FuncAnimation(
+    fig2,
+    update,
+    frames=len(total_biofilm),
+    interval=60,
+    blit=True
+)
+
+gif_path = os.path.join(OUTPUT_DIR, "multispecies_biofilm_growth.gif")
+ani.save(gif_path, writer="pillow", fps=18, dpi=100)
+plt.close(fig2)
+
+print(f"Saved animation → {gif_path}")
+
+
+# Summary graph: coverage over time
+coverage_per_step = (total_biofilm > 0).sum(axis=(1, 2)) / (gs * gs) * 100
+
+plt.figure(figsize=(8, 5))
+plt.plot(coverage_per_step)
+plt.xlabel("Timestep")
+plt.ylabel("Surface colonized (%)")
+plt.title("Biofilm Surface Coverage Over Time")
+plt.grid(True)
+
+coverage_path = os.path.join(OUTPUT_DIR, "coverage_over_time.png")
+plt.savefig(coverage_path, dpi=150, bbox_inches="tight")
+plt.show()
+
+print(f"Saved coverage graph → {coverage_path}")
+
+
+# Species abundance graph
+plt.figure(figsize=(9, 5))
+
+for s, species in enumerate(species_names):
+    species_density = biofilm[:, s, :, :].sum(axis=(1, 2))
+    plt.plot(species_density, label=species)
+
+plt.xlabel("Timestep")
+plt.ylabel("Total species density")
+plt.title("Species Abundance Over Time")
+plt.legend()
+plt.grid(True)
+
+species_path = os.path.join(OUTPUT_DIR, "species_abundance_over_time.png")
+plt.savefig(species_path, dpi=150, bbox_inches="tight")
+plt.show()
+
+print(f"Saved species graph → {species_path}")
+
+
+# Nutrient graph
+average_nutrients = nutrients.mean(axis=(1, 2))
+
+plt.figure(figsize=(8, 5))
+plt.plot(average_nutrients)
+plt.xlabel("Timestep")
+plt.ylabel("Average nutrient level")
+plt.title("Nutrient Depletion Over Time")
+plt.grid(True)
+
+nutrient_path = os.path.join(OUTPUT_DIR, "nutrient_depletion_over_time.png")
+plt.savefig(nutrient_path, dpi=150, bbox_inches="tight")
+plt.show()
+
+print(f"Saved nutrient graph → {nutrient_path}")
+
+
+# Print summary
+print("\n── Simulation Summary ────────────────────────")
+print(f"Step 0 coverage:   {coverage_per_step[0]:.2f}%")
+print(f"Step 25 coverage:  {coverage_per_step[25]:.2f}%")
+print(f"Step 50 coverage:  {coverage_per_step[50]:.2f}%")
+print(f"Step 100 coverage: {coverage_per_step[100]:.2f}%")
+
+print("\nSpecies included:")
+for species in species_names:
+    print(f" - {species}")
+
+print(f"\nAll outputs saved in → ./{OUTPUT_DIR}/")
+
