@@ -1,1 +1,22 @@
+The order of running the code in RStudio is important because several later analyses depend on earlier filtering and preprocessing steps. Some functions use previously modified datasets, meaning that changes made earlier in the script can affect whether later sections work correctly.
+For example, the oral microbiome dataset was filtered using:
+filter(study_name == "BritoIL_2016", body_site == "oralcavity")
+This removed non-oral samples and also limited the available disease categories. As a result, later regression analysis comparing bacterial abundance with disease condition could not run correctly because the filtered dataset only contained one disease category (“healthy/control”). Therefore, some statistical methods requiring multiple comparison groups may return errors or no valid results.
+Similarly, changing filtering conditions may also change the Bray-Curtis PCoA results. If healthy or diseased samples are filtered out earlier in the workflow, the Bray-Curtis clustering graph may show very different sample distributions and community patterns because the microbiome composition being analyzed has changed. Since Bray-Curtis distance compares overall bacterial community similarity between samples, removing certain biological groups can significantly affect clustering structure, dimensionality reduction results, and visual interpretation.
 
+In addition, some variables such as meta, abundance, and sample_id were modified throughout the workflow. Running later sections without first running the earlier preprocessing code may cause:
+-missing variable errors,
+-duplicated column names,
+-empty dataframes,
+-incorrect graph outputs.
+
+To avoid these issues:
+-run the code sequentially from top to bottom,
+-restart the R session before rerunning the full script,
+-verify dataset dimensions and metadata after filtering,
+-check whether variables already contain modified columns before merging datasets again.
+
+Some analyses also depend on the biological composition of the filtered dataset. If filtering criteria are changed (for example selecting another body site or study), results such as prevalence calculations, regression outputs, and Bray-Curtis clustering may differ significantly.
+Finally, because microbiome datasets are highly dimensional and sparse, some bacterial species may not appear in enough samples for meaningful statistical analysis. Therefore, checks such as:
+-“if (length(unique(sub_df$disease)) < 2)”
+were included to prevent invalid regression models from running.
