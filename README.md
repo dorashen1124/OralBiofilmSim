@@ -1,4 +1,4 @@
-# Development-of-a-3D-Computational-Human-Mouth-Model-Integrating-Microbiome-Data Analysis,-Bacterial-Dynamics,-and-Biofilm-Formation-Simulation
+# Development of a 3D Computational Human Mouth Model Integrating Microbiome Data Analysis, Bacterial Dynamics, and Biofilm Formation Simulation
 My code helps to explore and visualize how some prevalent species of bacteria move and interact in a oral microbiome environment. 
 
 It's not a comprehensive model for bacteria but this project crossed multi platform (pycharm, blender, and r studio) to extract and visualize data from the curatedMetagenomicData megaset. 
