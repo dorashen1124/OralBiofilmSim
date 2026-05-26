@@ -355,6 +355,34 @@ for name in SPECIES:
 
 ##Growth Model##
 
+#Cellular automaton
+The tooth surface is represented as a 2D grid.
+Each grid cell stores bacterial density from 0 to 1.
+
+#Nutrient gradient model
+create_nutrient_grid() creates more nutrients near the center of the tooth surface.
+This makes bacterial growth spatially uneven, like a simulated nutrient-rich region.
+
+#Multi-species biofilm simulation
+The model simulates three species at the same time.
+Each species has its own growth rate, attachment probability, and initial cell number.
+
+#Probabilistic spreading
+If nearby cells already contain bacteria, empty cells may become colonized.
+This is controlled by attachment_prob, neighboring bacteria, nutrients, and competition.
+
+#Nutrient-dependent growth
+Bacteria grow faster where nutrient levels are higher.
+Growth slows down when nutrients are depleted.
+
+#Competition effect
+The code calculates total bacteria in a cell.
+If a cell is already crowded, growth is reduced.
+
+#Time-step simulation
+The model runs for 100 steps.
+Each step updates bacterial density and nutrient level.
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
