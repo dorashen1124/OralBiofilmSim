@@ -1,0 +1,268 @@
+1. RStudio filtering algorithm
+
+oral <- sampleMetadata |>
+  filter(
+    study_name == "BritoIL_2016",
+    body_site == "oralcavity"
+  ) |>
+  returnSamples(
+    "relative_abundance",
+    rownames = "short"
+  )
+
+This algorithm filters the curated microbiome database to select only the study and body site needed for the project.
+I chose this because my project focuses on the oral microbiome, so stool or other body-site samples would not match the biological goal.
+This step makes the dataset scientifically relevant before using it in Python or Blender.
+
+2. RStudio abundance extraction algorithm
+
+abundance <- assay(oral, "relative_abundance")
+meta <- as.data.frame(colData(oral))
+
+assay() extracts the numerical bacterial abundance matrix.
+colData() extracts sample metadata, such as disease condition and study condition.
+I chose this because the simulation needs both:
+bacterial abundance values,
+and sample labels/background information.
+This step turns the curated database object into usable tables.
+
+3. RStudio sorting/selecting dominant bacteria algorithm
+
+avg_abundance <- rowMeans(abundance)
+top10_names <- names(
+  sort(avg_abundance, decreasing = TRUE)[1:10]
+)
+
+rowMeans() calculates average abundance for each bacterial species.
+sort(..., decreasing = TRUE) ranks bacteria from most abundant to least abundant.
+[1:10] selects the top bacteria.
+I chose this because the original dataset contains hundreds of taxa, so selecting dominant bacteria makes the model easier to interpret.
+This helped justify why certain species were chosen for animation and simulation.
+
+4. RStudio prevalence algorithm
+
+prevalence <- rowSums(abundance > 0) / ncol(abundance)
+sort(prevalence, decreasing = TRUE)[1:20]
+
+This measures how frequently each bacterium appears across oral samples.
+I did some research about some of those species. Those species in this dataset are interesting because they can be divided into three major groups involved in the development of the oral microbiome. The first group consists of early colonizers, including Streptococcus mitis, S. oralis, S. parasanguinis, and S. sanguinis. These bacteria are some of the first organisms to attach to the tooth surface and help create the foundation of the oral biofilm. After the early colonizers establish themselves, secondary colonizers begin to grow. This group includes Veillonella parvula, V. dispar, and V. atypica. These bacteria interact with the Streptococci by feeding on the lactate they produce, showing how different species in the microbiome depend on each other metabolically. The final group contains disease-associated bacteria such as Porphyromonas gingivalis, Fusobacterium periodonticum, and Prevotella melaninogenica. These species are commonly linked to periodontal disease and are important for studying how changes in microbial communities can contribute to oral health problems. Together, these three groups demonstrate how the oral microbiome develops from early biofilm formation to complex bacterial interactions and, in some cases, disease progression.
+abundance > 0 checks whether a species is present.
+rowSums() counts how many samples contain that species.
+I chose this because a bacterium can be important not only by high abundance, but also by appearing consistently across people.
+
+5. RStudio reshaping algorithm for graphing
+
+abundance_df <- abundance[top10_names, ] |>
+  as.data.frame() |>
+  tibble::rownames_to_column("species") |>
+  pivot_longer(
+    -species,
+    names_to = "sample_id",
+    values_to = "abundance"
+  )
+
+pivot_longer() converts the abundance table from wide format to long format.
+This is important because ggplot2 works best with long-format data.
+I chose this method because it allowed each row to represent:
+one species,
+one sample,
+one abundance value.
+This made the dataset graphable.
+
+6. RStudio graphing algorithm
+
+ggplot(plot_df, aes(x = sample_id, y = abundance, fill = species)) +
+  geom_bar(stat = "identity") +
+  facet_wrap(~ species, scales = "free_y") +
+  labs(
+    x = "Subject",
+    y = "Relative abundance",
+    title = "Oral bacterial abundance across subjects"
+  ) +
+  theme_minimal()
+
+This algorithm creates faceted bar charts for bacterial abundance.
+facet_wrap() separates each species into its own graph.
+I chose this because it clearly shows how oral bacteria vary between subjects.
+This graph supported the project by showing which bacteria were common or dominant before building the simulation.
+
+7. Python cellular automaton algorithm
+
+grids = np.zeros((n_species, grid_size, grid_size))
+
+This creates one 2D grid for each bacterial species.
+Each cell stores bacterial density from 0 to 1.
+I chose this because biofilms grow on surfaces, and a grid is a strong way to model spatial colony formation.
+This is better than a simple equation because it shows where bacteria grow, not just how much they grow.
+
+8. Python nutrient-gradient algorithm
+
+x = np.linspace(-1, 1, grid_size)
+y = np.linspace(-1, 1, grid_size)
+X, Y = np.meshgrid(x, y)
+
+nutrients = np.exp(-(X**2 + Y**2) * 2)
+nutrients = nutrients / nutrients.max()
+This creates a nutrient map where nutrients are higher near the center.
+I chose this because real oral bacterial growth depends on nutrient availability.
+This prevents the biofilm from growing uniformly everywhere and makes growth more realistic.
+
+9. Python neighbor-checking and spreading algorithm
+
+neighbors = (
+    grids[s, i - 1, j] +
+    grids[s, i + 1, j] +
+    grids[s, i, j - 1] +
+    grids[s, i, j + 1]
+)
+
+spread_chance = (
+    attachment_prob *
+    neighbors *
+    nutrient_effect *
+    competition_effect
+)
+
+if np.random.random() < spread_chance:
+    new_grids[s, i, j] = 0.1
+
+This checks whether nearby cells contain bacteria.
+If neighbors exist, an empty cell has a chance to become colonized.
+I chose this because bacteria in biofilms usually spread from existing colonies rather than appearing randomly everywhere.
+The random probability makes the colony pattern more natural.
+
+10. Python nutrient-dependent growth and competition algorithm
+
+total_bacteria_here = grids[:, i, j].sum()
+competition_effect = max(0, 1 - total_bacteria_here)
+growth = (
+    growth_rate *
+    nutrient_effect *
+    competition_effect *
+    (1 - current_density)
+)
+new_grids[s, i, j] = min(1.0, current_density + growth)
+
+This calculates how much a bacterial cell grows.
+Growth depends on:
+species growth rate,
+nutrient level,
+competition,
+remaining space in the cell.
+I chose this because real biofilms are limited by space and nutrients.
+This prevents unrealistic unlimited growth.
+
+11. Python nutrient depletion algorithm
+
+new_nutrients[i, j] = max(
+    0,
+    new_nutrients[i, j] - nutrient_consumption * current_density
+)
+
+This decreases nutrients as bacteria grow.
+I chose this because bacteria consume nutrients over time.
+This makes the simulation more realistic because growth slows when resources run out.
+
+12. Python species-specific parameter algorithm
+
+SPECIES_PARAMS = {
+    "Streptococcus_mitis": {
+        "growth_rate": 0.16,
+        "attachment_prob": 0.35,
+        "initial_cells": 18
+    },
+    "Veillonella_parvula": {
+        "growth_rate": 0.10,
+        "attachment_prob": 0.25,
+        "initial_cells": 10
+    },
+    "Porphyromonas_gingivalis": {
+        "growth_rate": 0.06,
+        "attachment_prob": 0.15,
+        "initial_cells": 6
+    }
+}
+
+This gives each species different biological behavior.
+I chose this because oral bacteria do not all grow or attach the same way.
+This allowed the model to represent:
+early colonizers,
+secondary colonizers,
+disease-associated species.
+
+13. Python CSV export algorithm
+
+flat = biofilm[:, s, :, :].reshape(n_steps_saved, gs * gs)
+
+for cell in range(gs * gs):
+    all_data[f"{species}_cell_{cell}"] = flat[:, cell]
+df_out = pd.DataFrame(all_data)
+df_out.to_csv("multispecies_biofilm_timesteps.csv")
+
+This converts 3D simulation data into a CSV table.
+Rows represent timesteps.
+Columns represent species-specific grid cells.
+I chose CSV export because it lets Python send simulation data into Blender.
+
+14. Blender flattened-grid reconstruction algorithm
+
+row = idx // GRID_SIZE
+col = idx % GRID_SIZE
+
+Python saves the 50 × 50 grid as 2500 CSV columns.
+Blender uses this code to rebuild the original grid shape.
+I chose this because it allows a flat CSV file to become a spatial 3D biofilm again.
+
+15. Blender biofilm keyframe animation algorithm
+
+cube.scale.z = max(0.001, density * BIOFILM_Z)
+cube.keyframe_insert(
+    data_path="scale",
+    index=2,
+    frame=frame
+)
+
+This changes cube height based on biofilm density.
+Low density creates short cubes.
+High density creates taller cubes.
+I chose this because it visually transforms numerical biofilm density into a 3D growing structure.
+
+16. Blender bacterial movement algorithm
+
+x = ts_values[b * 3] * 5
+y = ts_values[b * 3 + 1] * 5
+z = ts_values[b * 3 + 2] * 5 + z_offset
+sphere.location = (x, y, z)
+sphere.keyframe_insert(data_path="location", frame=frame)
+
+This reads bacterial x, y, z coordinates from movement CSV files.
+Each bacterium becomes a moving sphere.
+I chose this because it turns Python simulation trajectories into visible 3D bacterial movement.
+
+17. Blender competition bar algorithm
+height = (row_vals[s] / max_val) * MAX_BAR_HEIGHT
+
+bar.scale.z = max(0.001, height)
+bar.location.z = height / 2
+bar.keyframe_insert(data_path="scale", index=2, frame=frame)
+bar.keyframe_insert(data_path="location", index=2, frame=frame)
+
+This converts population values into animated bar heights.
+Larger population means taller bar.
+I chose this because it makes species competition visible alongside the 3D biofilm scene.
+
+18. Cross-platform CSV transition algorithm
+
+RStudio curated dataset
+→ oral_abundance.csv / oral_metadata.csv
+→ PyCharm simulation models
+→ biofilm and trajectory CSV files
+→ Blender 3D animation
+
+This is one of the most important algorithms in my whole project.
+CSV files allow different tools to communicate.
+I chose this approach because RStudio, PyCharm, and Blender are not naturally connected.
+CSV conversion made it possible to combine:
+biological data analysis,
+computational simulation,
+and 3D visualization.
