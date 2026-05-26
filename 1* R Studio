@@ -35,16 +35,40 @@ sampleMetadata |>
 ## Prevalence of bacteria species (can paste this whole chunk into r studio)
 
 # Load libraries
+
+#load curated microbiome datasets from bioconductor
 library(curatedMetagenomicData)
+
+#load data manipulation tools
 library(dplyr)
+
+#load graphing package
 library(ggplot2)
+
+#load data reshaping package
 library(tidyr)
+
+#load microbiome analysis tools
 library(mia)
+
+#load dimensionality reduction and microbiome visualization tools
 library(scater)
+
+#load ecological distance/statistical tools
 library(vegan)
 
+# Open the metadata table in RStudio viewer
+# Metadata contains:
+# - study names
+# - sample IDs
+# - body site
+# - disease status
+# - antibiotic use
+# - age and other biological variables
 View(sampleMetadata)
 
+# Filter metadata to identify available body sites
+# in the BritoIL_2016 microbiome study
 sampleMetadata |>
     #take the same specie from the website I used to explore the relative abundance of the top 10 oral bacteria across different subects/samples from the BritoIL_2016 oral activity microbiome dataset
     filter(study_name == "BritoIL_2016") |>
@@ -56,6 +80,9 @@ oral <- sampleMetadata |>
         study_name == "BritoIL_2016",
         body_site == "oralcavity"
     ) |>
+
+# Extract relative abundance microbiome data
+    # from curatedMetagenomicData
     returnSamples(
         "relative_abundance",
         rownames = "short"
@@ -64,8 +91,10 @@ oral <- sampleMetadata |>
 # Check dataset dimensions
 # The purpose to check this is to verify whether: dataset imported correctly, filtering worked properly, and enough data exists for statistical analysis
 # In this project, it confilmed that only cavity samples were selected and the dataset still contained a large amount of microbial information
+# rows = microbial species/taxa
+# columns = oral microbiome samples
 dim(oral)
-#When run this separately hopeully it will print [1] 730 140, which is 730 species in total and 140 samples gives enough subjects for trends and statistical modeling
+
 
 # Extract abundance matrix + metadata
 abundance <- assay(oral, "relative_abundance")
@@ -150,7 +179,6 @@ meta_df <- meta |>
 
 
 # Export CSV files-exporting CSV files are important for later steps coding in pycharm because the data will contain a cleaned abundance tables and filtered oral microbiome data instead of repeating preprocessing everytime
-#
 write.csv(
     abundance_model_df,
     "oral_abundance.csv",
