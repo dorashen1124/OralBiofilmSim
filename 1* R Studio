@@ -26,9 +26,7 @@ library(curatedMetagenomicData)
 sampleMetadata |>
 +     filter(study_name == "BritoIL_2016") |>
 +     distinct(body_site)
-#hopefully it will appear: body_site
-1 oralcavity
-2      stool 
+#hopefully it will appear: body site and let the user select which body site
 
 ---
 
